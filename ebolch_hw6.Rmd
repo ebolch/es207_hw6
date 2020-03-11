@@ -1,0 +1,377 @@
+---
+title: "ebolch_hw6"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(tidyverse)
+require(broom)
+```
+
+# Publication Quality Plots
+
+1. Complete Qian text Chapter 5 Question 4a. Make a publication quality graph of the scatter plot and the residual plot. Answer the question as directed.
+```{r}
+pol.dat <- read_csv("data/pollution.csv")
+
+p <- ggplot(pol.dat, aes(y = mort, x = nox)) +
+  
+  geom_smooth(method = "lm", color = "blue", se = T ) +
+  geom_point() +
+  theme_bw()+
+  xlab("Relative Nitric Oxides Polution Potential") +
+  ylab("Total Age-adjusted Mortality Rate per 100,000")
+
+p + labs(title = "Effect of Nitric Oxides on Mortality Rate",
+        subtitle = "A Linear Model",
+        caption = "First attempt at modeling NO effects on mortality rate. Based on the change in standard error associated with \n the model (gray area), its unlikely this is a good model.")+
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14),    
+    plot.subtitle = element_text(hjust = 0.5),            
+    plot.caption = element_text(hjust = 0, face = "italic")
+  )
+```
+
+```{r}
+lm1 <- lm(mort ~ nox, data = pol.dat)
+summary(lm1)
+lm1.dat <- augment(lm1,pol.dat)
+```
+
+
+```{r}
+r <- ggplot(lm1.dat, aes(y = .resid, x = .fitted)) +  
+  geom_point()+
+  theme_bw() +
+  ggtitle("") +
+  ylab("Residual Nitric Oxides Polution Potential") +
+  xlab("Fitted Total Age-adjusted Mortality Rate per 100,000")
+
+r + labs(title = "Effect of Nitric Oxides on Mortality Rate",
+        subtitle = "Fitted vs. Residuals",
+        caption = "Based on the distribution of points here it seems highly unlikely that this model accurately represents the system. \n Because the residuals are not uniformly distributed, there is likely a non-linear relationship occuring ")+
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14),    
+    plot.subtitle = element_text(hjust = 0.5),            
+    plot.caption = element_text(hjust = 0, face = "italic")
+  )
+
+
+
+```
+2. Complete Qian text Chapter 5 Question 4b and 4c.
+```{r}
+
+lm2 <- lm(mort ~ log(nox), data = pol.dat)
+summary(lm2)
+lm2.dat <- augment(lm2, pol.dat) 
+lm2.dat$log.nox <- log(lm2.dat$nox)
+
+lm3 <- lm(log(mort) ~ log(nox), data = pol.dat)
+summary(lm3)
+lm4 <- lm(mort ~ 1/nox, data = pol.dat)
+summary(lm4)
+
+
+```
+
+```{r}
+#Evaluate Different Transformations
+par(mfrow = c(2,2)); plot(lm1, which = 1); plot(lm2, which = 1); plot(lm3, which = 1); plot(lm4, which = 1); 
+par(mfrow = c(2,2)); plot(lm1, which = 2); plot(lm2, which = 2); plot(lm3, which = 2); plot(lm4, which = 2)
+par(mfrow = c(2,2)); plot(lm1, which = 3); plot(lm2, which = 3); plot(lm3, which = 3); plot(lm4, which = 3)
+par(mfrow = c(2,2)); plot(lm1, which = 4); plot(lm2, which = 4); plot(lm3, which = 4); plot(lm4, which = 4)
+par(mfrow = c(2,2)); plot(lm1, which = 5); plot(lm2, which = 5); plot(lm3, which = 5); plot(lm4, which = 5)
+
+
+```
+
+From this overview, a natural log transform of nox concentrations appears to be the best of the attempted transformations. It results in a more evenly distrubuted fitted vs residuals plot, maintains a similar degree of normality to the initial data. Attempts to improve homoscedasticity from the model by log transforming the mortality rate doesn't seem to make a difference based on the scale-location plots, and theres no reason for unnecessary transformations. 
+
+```{r}
+ggplot(lm2.dat, aes(y = mort, x = log.nox)) +
+  
+  geom_smooth(method = "lm", color = "lightgrey", se = F ) +
+  geom_point() +
+  theme_bw()+
+  ggtitle("") +
+  xlab("Natural Log Transformed Relative Nitric Oxides Polution Potential") +
+  ylab("Total Age-adjusted Mortality Rate per 100,000")
+```
+
+```{r}
+ggplot(lm2.dat, aes(y = .resid, x = .fitted)) +  
+  geom_point()+
+  theme_bw() +
+  ggtitle("") +
+  ylab("Residual Nitric Oxides Polution Potential") +
+  xlab("Fitted Total Age-adjusted Mortality Rate per 100,000")
+
+```
+
+# Compare Predictions
+
+4. Write a function that calculates each of the above statistics, and returns a tibble that where the column heading is the model name, and each row is a statistic. Name your function something logical so you can use it for future work (e.g., model_assess.R). Push your .R script to a new GitHub repo called es207_hw6.
+
+```{r}
+source(paste0(getwd(),"/model_assess.R"))
+model_assess(lm2.dat, "mort", ".fitted")
+```
+5. Complete Qian text Chapter 5 Question 4d.
+
+```{r}
+mult.pol.dat <- pol.dat %>%
+  gather(key = pollutant, value = rpp, "nox", "so2", "hc") %>%
+  select("mort", pollutant, "rpp")
+mult.pol.dat$pollutant <-as.factor(mult.pol.dat$pollutant)
+
+```
+
+
+
+```{r}
+lm5 <- lm(mort ~ nox + so2 + hc, data = pol.dat)
+lm5.dat <- augment(lm5, pol.dat)
+summary(lm5)
+lm6 <- lm(mort ~ log(nox) + log(so2) + log(hc), data = pol.dat)
+lm6.dat <- augment(lm6, pol.dat)
+lm6.dat$log.nox <- log(lm6.dat$nox)
+lm6.dat$log.so2 <- log(lm6.dat$so2)
+lm6.dat$log.hc <- log(lm6.dat$hc)
+
+summary(lm6)
+lm7 <- lm(log(mort) ~ log(nox) + log(so2) + log(hc), data = pol.dat)
+summary(lm7)
+
+par(mfrow = c(2,2)); plot(lm5, which = 1); plot(lm6, which = 1); plot(lm6, which = 1); plot(lm2, which = 1); 
+par(mfrow = c(2,2)); plot(lm5, which = 2); plot(lm6, which = 2); plot(lm6, which = 2); plot(lm2, which = 2)
+par(mfrow = c(2,2)); plot(lm5, which = 3); plot(lm6, which = 3); plot(lm6, which = 3); plot(lm2, which = 3)
+par(mfrow = c(2,2)); plot(lm5, which = 4); plot(lm6, which = 4); plot(lm6, which = 4); plot(lm2, which = 4)
+par(mfrow = c(2,2)); plot(lm5, which = 5); plot(lm6, which = 5); plot(lm6, which = 5); plot(lm2, which = 5)
+```
+
+Adding multiple variables imrproves the model quality, log transforming the independent variables as in the previous problem appear to increase the performance of the model, but log transforming y variables does not change scedacitiy significantly, so can be left untransformed.
+
+```{r}
+multlm.dat <- lm6.dat %>%
+  gather(key = pollutant, value = rpp, "log.nox", "log.so2", "log.hc") %>%
+  select(".fitted", pollutant, "rpp")
+mult.pol.dat$pollutant <-as.factor(mult.pol.dat$pollutant)
+
+
+ggplot(data = multlm.dat, aes(y = .fitted, x = rpp, color = pollutant )) +
+  
+  geom_point() +
+  #geom_line(data = lm6.dat, aes(x = log.nox, y = .fitted)) +
+  theme_bw()+
+  ggtitle("Modelled Mortality based on Relative Polution Potential") +
+  xlab("Natural Log Transformed Relative Polution Potential") +
+  ylab("Predicted Total Age-adjusted Mortality Rate per 100,000")
+```
+
+6. Complete Qian text Chapter 5 Question 5e. Include all relevant model diagnostics, including summary statistics and residual plots. Also make sure to include applying the function from question 4 to compare and assess your results.
+
+
+```{r}
+set.seed(12)
+pol.dat$ID <- 1:nrow(pol.dat)
+s1 <- sample_n(pol.dat, nrow(pol.dat)/2)
+s2 <- pol.dat[!(pol.dat$ID %in% s1$ID),]
+
+lmcv <- lm(mort ~ log(nox) + log(so2) + log(hc), data = s1)
+
+plot(lmcv, which = 1); 
+plot(lmcv, which = 2); 
+plot(lmcv, which = 3); 
+plot(lmcv, which = 4); 
+plot(lmcv, which = 5); 
+
+```
+From this information, we see that there are no non-linear patters (residual plot), the distribution is close to normal (qqplot), the assumption of homoscedacicity seems valid because the points are relatively evenly spread on the scale-location plot,  and all fall within Cook's distance, meaning there are no unusually influential points. It appears the model is valid and meets all assumptions necessary for a linear model: linearity, normal distribution, homoscedasticity, independence and its representative of the data of interest. So we can evaluate performance using a second subset and the metrics below.
+
+```{r}
+s2 <- s2 %>% 
+  spread_predictions(pred_mort = lmcv)
+s2
+
+ggplot(s2, aes(x = mort, y = pred_mort))+
+  geom_point()+
+  xlab("Measured Mortality")+
+  ylab("Predicted Mortality")+
+  theme_bw()
+
+source(paste0(getwd(),"/model_assess.R"))
+model_assess(s2, "mort", "pred_mort")
+
+#lmcv.dat <- augment(lmcv, s1)
+```
+
+From looking at the plot of the predicted values for mortality vs the measured values, _. After examining RSME, the _, the MAE indicates taht _, and the relatively small but negative Pbias indicates underestimation bias. 
+
+7. Complete Qian text Chapter 5 Question 5f.
+```{r}
+lm <- lm(mort ~ nox, data = pol.dat)
+
+pol.lm <- lm(mort ~ nox, data = pol.dat) %>% 
+    augment() #This places the linear model object into a data frame
+```
+
+#Many Models
+
+
+8. Re-write the code as above, but use the piping function preferred by the tidyverse. Prove you get the same output.
+
+```{r}
+library(readxl)
+psoil <- read_excel("data/Event_data_log.xlsx")
+psoil
+
+psoil.g1 <- gather(psoil, key = "depth", value = "soiltest", log_0_2, log_0_4, log_0_8)
+
+psoil.g <- psoil %>%
+  gather(key = "depth", value = "soiltest", log_0_2, log_0_4, log_0_8)
+
+psoil.g1 == psoil.g #this works but im sure there's a better method
+
+```
+
+```{r}
+psoil.g$depth <- substr(psoil.g$depth, start = 7, stop = 7)
+psoil.g
+ggplot(psoil.g, aes(x = soiltest, y = log_PO4, color = percentile)) + geom_point() + geom_smooth(method = "lm") + facet_wrap(source~depth)
+psoil.nested <- psoil.g %>% 
+  group_by(depth, source, percentile) %>% 
+  nest()
+psoil.nested
+```
+
+```{r}
+psoil.nested$data[1]
+```
+
+```{r}
+psoil.nested[[4]][1]
+psoil.nested[4][1]
+```
+
+9. Using the indexing techniques for list columns, print for me the third number in the vector of log_PO4 from depth = 2, source = tile, percentile = 75.
+
+```{r}
+#Column 4, row 8, column 2, row 3
+psoil.nested[[4]][[8]][[2]][3]
+
+```
+
+```{r}
+st_vs_po4 <- function(df) {
+  lm(log_PO4 ~ soiltest, data = df)
+}
+st_vs_po4(psoil.nested[[1, "data"]])
+psoil.nested <- psoil.nested %>% 
+   mutate(lm.fit = map(data, st_vs_po4))
+psoil.nested
+psoil.nested$lm.fit[1]
+```
+
+10. Write another function calculating the summary of the lm and map() mutate() it to add to the object psoil.nested. Call that item “lm.summary”. Show me your results and prove to me it works.
+
+```{r}
+gl_sm <- function(smy){
+  summary(smy)
+}
+psoil.nested <- psoil.nested %>%
+  mutate(lm.summary = map(lm.fit,gl_sm))
+psoil.nested
+psoil.nested$lm.summary[1]
+
+```
+```{r}
+psoil.nested <- psoil.nested %>% 
+  mutate(lm.coeffs = map(lm.fit, tidy)) %>% 
+  mutate(lm.stats = map(lm.summary, glance))
+psoil.nested
+psoil.nested$lm.stats[[1]]
+psoil.stats <- psoil.nested %>% 
+  dplyr::select(depth, source, percentile, lm.stats) %>% 
+  unnest(lm.stats)
+psoil.stats
+psoil.coeffs <- psoil.nested %>% 
+  dplyr::select(depth, source, percentile, lm.coeffs) %>% 
+  unnest(lm.coeffs)
+psoil.coeffs
+```
+
+11. Make some graphs that enable Dr. Duncan to visualize the results of the different regressions and compare the regression results for different depths, sources, and quantiles.
+
+
+```{r}
+
+```
+
+12. What can you conclude about the ability of SRP to measure PO4? Make sure to address why Dr. Duncan divided her data into different quantiles for analysis, and how that influences the results. What are the limitations of the analysis?
+
+```{r}
+
+```
+
+13. Often, we use regression to remove the primary effect of variation on a dataset, and then we examine the residuals for other effects. We dont have any other covariates to analyze in this dataset, so conduct a thought experiment. In a few sentences, outline for me the next steps in this analysis you would take to do such an exercise. Hint, see the “Model” chapter of R 4 Data Science to guide your answer.
+
+
+
+```{r}
+
+```
+
+# Multiple Linear Regression
+
+```{r}
+soil <- read_csv("data/cameroon_soil.csv")
+pairs(~Clay1 + OC1 + CEC1, data = soil)
+topsoil <- dplyr::select(soil, CEC1, Clay1, OC1)
+cov(topsoil)
+cor(topsoil)
+
+```
+
+14. In 3-5 sentences, interpret these results for me. Check the documentation on the functions for assistance as needed.
+
+# Pairwise Partial Correlations
+
+```{r}
+cor(residuals(lm(CEC1~Clay1, data = topsoil)), residuals(lm(OC1~Clay1, data = topsoil)))
+cor(residuals(lm(CEC1~OC1, data = topsoil)), residuals(lm(Clay1~OC1, data = topsoil)))
+cor(topsoil$CEC1, topsoil$OC1)
+cor(topsoil$CEC1, topsoil$Clay1)
+
+```
+
+15. Given this information, if you had to select a single best predictor of CEC in topsoil, which variable would you select?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
